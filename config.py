@@ -13,10 +13,9 @@ class Config:
     # Telegram
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
-    # WhatsApp / Twilio
-    TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
-    TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
-    TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER", "")
+    # WhatsApp (neonize — direct QR code auth, no Twilio needed)
+    WHATSAPP_ENABLED = os.getenv("WHATSAPP_ENABLED", "false").lower() in ("true", "1", "yes")
+    WHATSAPP_SESSION_DB = os.getenv("WHATSAPP_SESSION_DB", "./whatsapp_session.db")
 
     # LLM defaults
     DEFAULT_PROVIDER = os.getenv("DEFAULT_PROVIDER", "openai")
@@ -34,6 +33,8 @@ class Config:
     GOOGLE_MODEL = os.getenv("GOOGLE_MODEL", "gemini-2.0-flash")
 
     # AWS Bedrock
+    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
     AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
     BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "anthropic.claude-sonnet-4-20250514-v1:0")
 
@@ -41,6 +42,7 @@ class Config:
     VERTEX_PROJECT_ID = os.getenv("VERTEX_PROJECT_ID", "")
     VERTEX_LOCATION = os.getenv("VERTEX_LOCATION", "us-central1")
     VERTEX_MODEL = os.getenv("VERTEX_MODEL", "gemini-2.0-flash")
+    GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 
     # Azure Foundry
     AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY", "")

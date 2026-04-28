@@ -1,6 +1,6 @@
 from __future__ import annotations
 import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker
 from config import Config
 
@@ -32,6 +32,17 @@ class ExecutionLog(Base):
     tokens_used = Column(Integer, default=0)
     cost = Column(Float, default=0.0)
     executed_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class ScheduledTask(Base):
+    __tablename__ = "scheduled_tasks"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, index=True)       # who created the schedule
+    target_phone = Column(String)               # phone number to send to (e.g. 919876543210)
+    message = Column(Text)                      # message text to send
+    scheduled_at = Column(DateTime, index=True) # when to send (UTC)
+    is_done = Column(Boolean, default=False)    # whether it has been executed
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 
 Base.metadata.create_all(bind=engine)
@@ -116,3 +127,63 @@ def get_history(user_id: str, limit: int = 10) -> list[ExecutionLog]:
             .limit(limit).all())
     db.close()
     return logs
+
+
+# --- Scheduled Tasks ---
+
+def create_scheduled_task(user_id: str, target_phone: str, message: str,
+                          scheduled_at: datetime.datetime) -> ScheduledTask:
+    db = SessionLocal()
+    task = ScheduledTask(
+        user_id=user_id,
+        target_phone=target_phone,
+        message=message,
+        scheduled_at=scheduled_at,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    db.close()
+    return task
+
+
+def list_scheduled_tasks(user_id: str) -> list[ScheduledTask]:
+    db = SessionLocal()
+    tasks = (db.query(ScheduledTask)
+             .filter_by(user_id=user_id, is_done=False)
+             .order_by(ScheduledTask.scheduled_at.asc())
+             .all())
+    db.close()
+    return tasks
+
+
+def delete_scheduled_task(user_id: str, task_id: int) -> bool:
+    db = SessionLocal()
+    task = db.query(ScheduledTask).filter_by(id=task_id, user_id=user_id, is_done=False).first()
+    if task:
+        db.delete(task)
+        db.commit()
+        db.close()
+        return True
+    db.close()
+    return False
+
+
+def get_due_tasks() -> list[ScheduledTask]:
+    """Get all tasks that are due (scheduled_at <= now and not done)."""
+    db = SessionLocal()
+    now = datetime.datetime.utcnow()
+    tasks = (db.query(ScheduledTask)
+             .filter(ScheduledTask.scheduled_at <= now, ScheduledTask.is_done == False)
+             .all())
+    db.close()
+    return tasks
+
+
+def mark_task_done(task_id: int):
+    db = SessionLocal()
+    task = db.query(ScheduledTask).filter_by(id=task_id).first()
+    if task:
+        task.is_done = True
+        db.commit()
+    db.close()

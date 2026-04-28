@@ -65,11 +65,33 @@ async def _run_anthropic(prompt: str) -> dict:
 
 
 async def _run_google(prompt: str) -> dict:
-    import google.generativeai as genai
-    genai.configure(api_key=Config.GOOGLE_API_KEY)
-    model = genai.GenerativeModel(Config.GOOGLE_MODEL)
-    resp = await model.generate_content_async(prompt)
-    return {"text": resp.text, "tokens": 0}
+    import asyncio
+
+    def _sync_call():
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=Config.GOOGLE_API_KEY)
+        response = client.models.generate_content(
+            model=Config.GOOGLE_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["TEXT"],
+            ),
+        )
+        text = ""
+        if response.candidates:
+            for part in response.candidates[0].content.parts:
+                if part.text:
+                    text += part.text
+        tokens = getattr(response, "usage_metadata", None)
+        token_count = 0
+        if tokens:
+            token_count = getattr(tokens, "total_token_count", 0) or 0
+        return {"text": text or "No response generated.", "tokens": token_count}
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _sync_call)
 
 
 async def _run_bedrock(prompt: str) -> dict:

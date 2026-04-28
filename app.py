@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from config import Config
 from bot_telegram import setup_telegram, process_telegram_update
-from bot_whatsapp import setup_whatsapp, process_whatsapp_message, validate_twilio_request
+from bot_whatsapp import setup_whatsapp, shutdown_whatsapp
+from scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -16,11 +17,14 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     logger.info("Starting MobiBot...")
-    setup_whatsapp()
-    await setup_telegram()
+    await setup_whatsapp()   # neonize: QR code auth, runs as background task
+    await setup_telegram()   # webhook-based
+    await start_scheduler()  # background task scheduler
     logger.info("MobiBot is ready!")
     yield
     logger.info("Shutting down MobiBot...")
+    await stop_scheduler()
+    await shutdown_whatsapp()
 
 
 app = FastAPI(title="MobiBot", version="1.0.0", lifespan=lifespan)
@@ -39,26 +43,6 @@ async def telegram_webhook(request: Request):
     return Response(status_code=200)
 
 
-@app.post("/webhook/whatsapp")
-async def whatsapp_webhook(request: Request):
-    """Receive WhatsApp messages via Twilio webhook."""
-    form_data = dict(await request.form())
-
-    # Validate Twilio signature (optional but recommended)
-    signature = request.headers.get("X-Twilio-Signature", "")
-    url = str(request.url)
-    if signature and not validate_twilio_request(url, form_data, signature):
-        return Response(status_code=403, content="Invalid signature")
-
-    await process_whatsapp_message(form_data)
-
-    # Return empty TwiML response
-    return Response(
-        content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
-        media_type="application/xml",
-    )
-
-
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=True)
+    uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=False)
